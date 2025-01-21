@@ -4,6 +4,9 @@ import Document_and_Data.Document;
 import Document_and_Data.DocumentTermsInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,26 +28,34 @@ public class Leader {
 
     private static final String WORKER_URL = "http://localhost:8081/worker/process"; // Update worker's URL if needed
 
+
     @PostMapping("/start")
     public TreeMap<String, Double> start(@RequestBody String searchQuery) {
         RestTemplate restTemplate = new RestTemplate();
 
-        // Send search parameters to the worker and get the results
-        List<DocumentTermsInfo> workerResponse = restTemplate.postForObject(WORKER_URL, searchQuery, List.class);
+        // Specify the response type for deserialization
+        List<DocumentTermsInfo> workerResponse = restTemplate.exchange(
+                WORKER_URL,
+                HttpMethod.POST,
+                new HttpEntity<>(searchQuery),
+                new ParameterizedTypeReference<List<DocumentTermsInfo>>() {}
+        ).getBody();
 
         if (workerResponse == null || workerResponse.isEmpty()) {
             logger.warn("No results returned from the worker.");
             return new TreeMap<>();
         }
-        List<Document> ducuments = getDocumentsFromResources();
+
+        List<Document> documents = getDocumentsFromResources();
+
         // Calculate IDF and document scores
-        Map<String, Double> idfs = calculateIDF(workerResponse, ducuments.size(),
-                searchQuery);
+        Map<String, Double> idfs = calculateIDF(workerResponse, documents.size(), searchQuery);
         Map<Document, Double> documentScores = calculateDocumentsScore(idfs, workerResponse);
 
         // Sort and return the results
         return sortDocumentsScoresByName(documentScores);
     }
+
 
     private List<Document> getDocumentsFromResources() {
         try {

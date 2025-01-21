@@ -5,6 +5,7 @@ import java.util.HashMap;
 
 public class DocumentTermsInfo implements Serializable {
     private Document document;
+
     private HashMap<String,Double> termFrequency;
 
     public DocumentTermsInfo() {
