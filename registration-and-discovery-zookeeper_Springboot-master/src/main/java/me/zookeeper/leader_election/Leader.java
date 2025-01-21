@@ -40,6 +40,11 @@ public class Leader {
                 new HttpEntity<>(searchQuery),
                 new ParameterizedTypeReference<List<DocumentTermsInfo>>() {}
         ).getBody();
+        System.out.println("Worker response is: ");
+        for (DocumentTermsInfo info : workerResponse) {
+            System.out.println(info);
+        }
+
 
         if (workerResponse == null || workerResponse.isEmpty()) {
             logger.warn("No results returned from the worker.");
@@ -50,7 +55,13 @@ public class Leader {
 
         // Calculate IDF and document scores
         Map<String, Double> idfs = calculateIDF(workerResponse, documents.size(), searchQuery);
+        // Print the results
+        System.out.println("IDF Values:");
+        idfs.forEach((term, idf) -> System.out.println("Term: " + term + ", IDF: " + idf));
+
         Map<Document, Double> documentScores = calculateDocumentsScore(idfs, workerResponse);
+        System.out.println("Document Scores:");
+        documentScores.forEach((document, score) -> System.out.println("Document: " + document.getName() + ", Score: " + score));
 
         // Sort and return the results
         return sortDocumentsScoresByName(documentScores);
@@ -71,17 +82,27 @@ public class Leader {
 
     private Map<String, Double> calculateIDF(List<DocumentTermsInfo> documentTermsInfo, double totalDocuments, String searchQuery) {
         Map<String, Double> wordDocumentCount = new HashMap<>();
+
+        // Count documents containing each term
         for (DocumentTermsInfo termsInfo : documentTermsInfo) {
-            termsInfo.getTermFrequency().keySet().forEach(term -> wordDocumentCount.merge(term, 1.0, Double::sum));
+            termsInfo.getTermFrequency().keySet().stream()
+                    .map(String::toLowerCase)
+                    .map(String::trim)
+                    .distinct()
+                    .forEach(term -> wordDocumentCount.merge(term, 1.0, Double::sum));
         }
 
         Map<String, Double> idfs = new HashMap<>();
         for (String term : searchQuery.split("\\s+")) {
+            term = term.toLowerCase().trim();
             double documentCount = wordDocumentCount.getOrDefault(term, 0.0);
-            idfs.put(term, documentCount > 0 ? Math.log10(totalDocuments / documentCount) : 0.0);
+            idfs.put(term, Math.log10((double) totalDocuments / (documentCount + 1)));
+
+//            idfs.put(term, documentCount > 0 ? Math.log10(totalDocuments / documentCount) : 0.0);
         }
         return idfs;
     }
+
 
     private Map<Document, Double> calculateDocumentsScore(Map<String, Double> idfs, List<DocumentTermsInfo> documentTermsInfo) {
         Map<Document, Double> documentScores = new HashMap<>();

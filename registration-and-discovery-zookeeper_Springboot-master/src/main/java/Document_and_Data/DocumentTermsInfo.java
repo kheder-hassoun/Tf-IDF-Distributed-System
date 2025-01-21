@@ -31,4 +31,12 @@ public class DocumentTermsInfo implements Serializable {
     public void setTermFrequency(HashMap<String, Double> termFrequency) {
         this.termFrequency = termFrequency;
     }
+    @Override
+    public String toString() {
+        return "DocumentTermsInfo{" +
+                "document=" + document +
+                ", termFrequency=" + termFrequency +
+                '}';
+    }
+
 }

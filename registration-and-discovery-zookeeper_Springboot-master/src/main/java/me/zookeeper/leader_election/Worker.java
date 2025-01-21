@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class Worker {
 
     private static final Logger logger = LoggerFactory.getLogger(Worker.class);
-    private static final String DOCUMENTS_PATH = "D:\\4 and 5\\five\\Ds\\project\\ds_project_part1\\My-TF-IDF\\src\\main\\resources\\documents"; // Update as needed
+    private static final String DOCUMENTS_PATH = "C:\\Users\\kheder\\Downloads\\registration-and-discovery-zookeeper_Springboot-master\\registration-and-discovery-zookeeper_Springboot-master\\src\\main\\resources\\documents"; // Update as needed
 
     @PostMapping("/process")
     public List<DocumentTermsInfo> processDocuments(@RequestBody String searchQuery) {
@@ -61,10 +61,12 @@ public class Worker {
                 String fileContent = new String(data);
                 DocumentTermsInfo termsInfo = calculateScore(fileContent, queryWords, document.getName());
                 documentTermsInfos.add(termsInfo);
+                System.out.println(" ducument term info : "+documentTermsInfos.toString());
             } catch (Exception e) {
                 logger.error("Error processing document {}: {}", document.getName(), e.getMessage());
             }
         }
+        System.out.println("final document term info "+ documentTermsInfos);
         return documentTermsInfos;
     }
 
