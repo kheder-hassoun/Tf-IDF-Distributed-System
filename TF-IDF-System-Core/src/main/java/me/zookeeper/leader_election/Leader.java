@@ -22,11 +22,10 @@ import java.util.stream.Collectors;
 @RequestMapping("/leader")
 public class Leader {
 
-    private static final List<DocumentTermsInfo> documentTermsInfo = Collections.synchronizedList(new ArrayList<>());
+    private static final List<DocumentTermsInfo> documentpTermsInfo = Collections.synchronizedList(new ArrayList<>());
 
     private static final Logger logger = LoggerFactory.getLogger(Leader.class);
 
-    private static final String WORKER_URL = "http://localhost:8081/worker/process"; // Update worker's URL if needed
     //new
     @Autowired
     private ServiceRegistry serviceRegistry;
