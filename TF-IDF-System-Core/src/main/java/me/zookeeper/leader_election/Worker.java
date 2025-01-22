@@ -4,6 +4,7 @@ import Document_and_Data.Document;
 import Document_and_Data.DocumentTermsInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,13 +20,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
-
+import java.nio.file.Path;
+import java.nio.file.Paths;
 @RestController
 @RequestMapping("/worker")
 public class Worker {
 
     private static final Logger logger = LoggerFactory.getLogger(Worker.class);
-    private static final String DOCUMENTS_PATH = "D:\\4 and 5\\five\\Ds\\Final project\\TF-IDF-Project\\TF-IDF-System-Core\\src\\main\\resources\\documents";
+    @Value("${mydocument.path}")
+    private String DOCUMENTS_PATH ;
+
     @PostMapping("/process")
     public List<DocumentTermsInfo> processDocuments(@RequestBody String searchQuery) {
         logger.info("Processing documents for query: {}", searchQuery);

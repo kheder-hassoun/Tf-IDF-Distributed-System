@@ -4,6 +4,7 @@ import Document_and_Data.Document;
 import Document_and_Data.DocumentTermsInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 public class Leader {
 
     private static final List<DocumentTermsInfo> documentTermsInfo = Collections.synchronizedList(new ArrayList<>());
-    private static final String FOLDER_PATH = "D:\\4 and 5\\five\\Ds\\Final project\\TF-IDF-Project\\TF-IDF-System-Core\\src\\main\\resources\\documents";
+
     private static final Logger logger = LoggerFactory.getLogger(Leader.class);
 
     private static final String WORKER_URL = "http://localhost:8081/worker/process"; // Update worker's URL if needed
@@ -51,10 +52,10 @@ public class Leader {
             return new TreeMap<>();
         }
 
-        List<Document> documents = getDocumentsFromResources();
+
 
         // Calculate IDF and document scores
-        Map<String, Double> idfs = calculateIDF(workerResponse, documents.size(), searchQuery);
+        Map<String, Double> idfs = calculateIDF(workerResponse, workerResponse.size(), searchQuery);
         // Print the results
         System.out.println("IDF Values:");
         idfs.forEach((term, idf) -> System.out.println("Term: " + term + ", IDF: " + idf));
@@ -68,17 +69,6 @@ public class Leader {
     }
 
 
-    private List<Document> getDocumentsFromResources() {
-        try {
-            return Files.walk(Paths.get(FOLDER_PATH))
-                    .filter(Files::isRegularFile)
-                    .map(path -> new Document(path.getFileName().toString()))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            logger.error("Error reading documents: {}", e.getMessage());
-            return Collections.emptyList();
-        }
-    }
 
     private Map<String, Double> calculateIDF(List<DocumentTermsInfo> documentTermsInfo, double totalDocuments, String searchQuery) {
         Map<String, Double> wordDocumentCount = new HashMap<>();

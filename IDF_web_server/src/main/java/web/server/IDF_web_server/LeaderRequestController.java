@@ -2,13 +2,18 @@ package web.server.IDF_web_server;
 
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.data.Stat;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 public class LeaderRequestController {
@@ -41,6 +46,36 @@ public class LeaderRequestController {
             return ResponseEntity.status(500).body("Error retrieving leader information: " + e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error communicating with leader: " + e.getMessage());
+        }
+    }
+
+
+
+
+    private static final String REGISTRY_ZNODE = "/service_registry";
+
+    @GetMapping("/zookeeper-data")
+    public ResponseEntity<List<String>> getZookeeperData() {
+        List<String> znodeDataList = new ArrayList<>();
+
+
+        try (zooKeeper) {
+            List<String> childZnodes = zooKeeper.getChildren(REGISTRY_ZNODE, false);
+
+            for (String child : childZnodes) {
+                String childPath = REGISTRY_ZNODE + "/" + child;
+                Stat stat = zooKeeper.exists(childPath, false);
+
+                if (stat != null) {
+                    byte[] data = zooKeeper.getData(childPath, false, stat);
+                    znodeDataList.add(new String(data));
+                }
+            }
+
+            return ResponseEntity.ok(znodeDataList);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(List.of("Error fetching data from ZooKeeper: " + e.getMessage()));
         }
     }
 }
