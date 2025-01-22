@@ -1,10 +1,10 @@
-package me.zookeeper.leader_election;
 
+package me.zookeeper.leader_election;
 import Document_and_Data.Document;
 import Document_and_Data.DocumentTermsInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -14,8 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,39 +27,49 @@ public class Leader {
     private static final Logger logger = LoggerFactory.getLogger(Leader.class);
 
     private static final String WORKER_URL = "http://localhost:8081/worker/process"; // Update worker's URL if needed
-
+    //new
+    @Autowired
+    private ServiceRegistry serviceRegistry;
 
     @PostMapping("/start")
     public TreeMap<String, Double> start(@RequestBody String searchQuery) {
         RestTemplate restTemplate = new RestTemplate();
 
-        // Specify the response type for deserialization
-        List<DocumentTermsInfo> workerResponse = restTemplate.exchange(
-                WORKER_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(searchQuery),
-                new ParameterizedTypeReference<List<DocumentTermsInfo>>() {}
-        ).getBody();
-        System.out.println("Worker response is: ");
-        for (DocumentTermsInfo info : workerResponse) {
-            System.out.println(info);
-        }
-
-
-        if (workerResponse == null || workerResponse.isEmpty()) {
-            logger.warn("No results returned from the worker.");
+        //new
+        List<String> workerAddresses = serviceRegistry.getAllServiceAddresses();
+        if (workerAddresses == null || workerAddresses.isEmpty()) {
+            logger.warn("No workers available in the cluster.");
             return new TreeMap<>();
+        }
+        //new
+        List<DocumentTermsInfo> allWorkerResponses = new ArrayList<>();
+        for (String workerAddress : workerAddresses){
+            List<DocumentTermsInfo> workerResponse = restTemplate.exchange(
+                    workerAddress+"/worker/process",
+                    HttpMethod.POST,
+                    new HttpEntity<>(searchQuery),
+                    new ParameterizedTypeReference<List<DocumentTermsInfo>>() {}
+            ).getBody();
+            System.out.println("Worker response is: ");
+            for (DocumentTermsInfo info : workerResponse) {
+                System.out.println(info);
+            }
+            if (workerResponse == null || workerResponse.isEmpty()) {
+                logger.warn("No results returned from the worker.");
+                return new TreeMap<>();
+            }
+            allWorkerResponses.addAll(workerResponse);
         }
 
 
 
         // Calculate IDF and document scores
-        Map<String, Double> idfs = calculateIDF(workerResponse, workerResponse.size(), searchQuery);
+        Map<String, Double> idfs = calculateIDF(allWorkerResponses, allWorkerResponses.size(), searchQuery);
         // Print the results
         System.out.println("IDF Values:");
         idfs.forEach((term, idf) -> System.out.println("Term: " + term + ", IDF: " + idf));
 
-        Map<Document, Double> documentScores = calculateDocumentsScore(idfs, workerResponse);
+        Map<Document, Double> documentScores = calculateDocumentsScore(idfs, allWorkerResponses);
         System.out.println("Document Scores:");
         documentScores.forEach((document, score) -> System.out.println("Document: " + document.getName() + ", Score: " + score));
 
