@@ -25,8 +25,7 @@ import java.util.stream.Collectors;
 public class Worker {
 
     private static final Logger logger = LoggerFactory.getLogger(Worker.class);
-    private static final String DOCUMENTS_PATH = "C:\\Users\\kheder\\Downloads\\registration-and-discovery-zookeeper_Springboot-master\\registration-and-discovery-zookeeper_Springboot-master\\src\\main\\resources\\documents"; // Update as needed
-
+    private static final String DOCUMENTS_PATH = "D:\\4 and 5\\five\\Ds\\Final project\\TF-IDF-Project\\TF-IDF-System-Core\\src\\main\\resources\\documents";
     @PostMapping("/process")
     public List<DocumentTermsInfo> processDocuments(@RequestBody String searchQuery) {
         logger.info("Processing documents for query: {}", searchQuery);

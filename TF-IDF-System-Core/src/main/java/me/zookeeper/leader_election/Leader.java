@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class Leader {
 
     private static final List<DocumentTermsInfo> documentTermsInfo = Collections.synchronizedList(new ArrayList<>());
-    private static final String FOLDER_PATH = "D:\\4 and 5\\five\\Ds\\project\\ds_project_part1\\My-TF-IDF\\src\\main\\resources\\documents"; // Update as needed
+    private static final String FOLDER_PATH = "D:\\4 and 5\\five\\Ds\\Final project\\TF-IDF-Project\\TF-IDF-System-Core\\src\\main\\resources\\documents";
     private static final Logger logger = LoggerFactory.getLogger(Leader.class);
 
     private static final String WORKER_URL = "http://localhost:8081/worker/process"; // Update worker's URL if needed

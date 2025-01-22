@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Search Page</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f3e5f5;
+            color: #333;
+        }
+
+        nav {
+            background: #7b1fa2;
+            padding: 15px;
+            color: white;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        footer {
+            background: #4a148c;
+            color: #fff;
+            text-align: center;
+            padding: 10px 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: calc(100vh - 100px);
+            padding: 20px;
+        }
+
+        .search-box {
+            background: rgba(255, 255, 255, 0.91);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #7b1fa2;
+        }
+
+        input[type="text"] {
+            width: 80%;
+            padding: 15px;
+            margin: 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+            outline: none;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            background: #7b1fa2;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background: #6a1b9a;
+            transform: scale(1.05);
+        }
+
+        .response-container {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .response-item {
+            padding: 15px;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 16px;
+            text-align: center;
+            opacity: 0; /* Start hidden */
+            animation: fadeIn 1.5s ease-in-out forwards;
+        }
+
+        .response-item.blue {
+            background: #4ee10a;
+        }
+
+        .response-item.green {
+            background: #bf0b51;
+        }
+
+        .response-time {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #555;
+        }
+
+        .response-time span {
+            color: #7b1fa2;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<nav>Search Application</nav>
+
+<div class="main-container">
+    <div class="search-box">
+        <h1>Search Page</h1>
+        <input type="text" id="searchQuery" placeholder="Enter search term...">
+        <button onclick="sendSearchRequest()">🔍 Search</button>
+    </div>
+
+    <div class="response-time" id="responseTimeContainer">
+        <!-- Response time will appear here -->
+    </div>
+
+    <div class="response-container" id="responseContainer">
+        <!-- Results will appear here -->
+    </div>
+</div>
+
+<footer>© 2025 Search App. All rights reserved.</footer>
+<script>
+    function sendSearchRequest() {
+        const query = document.getElementById("searchQuery").value;
+        const responseContainer = document.getElementById("responseContainer");
+        const responseTimeContainer = document.getElementById("responseTimeContainer");
+
+        if (!query) {
+            alert("Please enter a search term.");
+            return;
+        }
+
+        responseContainer.innerHTML = `<div style='color: #666; text-align: center;'>Searching for <em>${query}</em>...</div>`;
+        responseTimeContainer.innerHTML = "";
+
+        const startTime = performance.now();
+
+        fetch(`/search?query=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                const endTime = performance.now();
+                const timeTaken = (endTime - startTime).toFixed(2);
+
+                responseTimeContainer.innerHTML = `Response received in <span>${timeTaken}ms</span>`;
+
+                // Process and replace 0.05115252244738131 with 0.0
+                const sortedResponse = Object.entries(data)
+                    .map(([file, value]) => {
+                        let processedValue = Math.abs(parseFloat(value)); // Convert to positive value
+                        if (processedValue === 0.05115252244738131) {
+                            processedValue = 0.0; // Replace 0.05115252244738131 with 0.0
+                        }
+                        return { file, value: processedValue };
+                    })
+                    .sort((a, b) => b.value - a.value); // Sort in descending order by value
+
+                // Check if all values are 0.0 after replacement
+                const allValuesAreZero = sortedResponse.every(item => item.value === 0.0);
+
+                if (allValuesAreZero) {
+                    responseContainer.innerHTML = `<div style='color: #666; text-align: center;'>No results found</div>`;
+                    return;
+                }
+
+                responseContainer.innerHTML = ''; // Clear previous results
+
+                sortedResponse.forEach((item, index) => {
+                    setTimeout(() => {
+                        const responseItem = document.createElement("div");
+                        responseItem.className = `response-item ${index === 0 ? 'blue' : 'green'}`;
+                        responseItem.innerHTML = `<strong>${item.file}</strong>: ${item.value}`;
+                        responseContainer.appendChild(responseItem);
+                    }, index * 500); // Delay each item by 500ms
+                });
+            })
+            .catch(error => {
+                responseContainer.innerHTML = `<span style='color: #e53935;'>Error:</span> ${error.message}`;
+            });
+    }
+</script>
+
+</body>
+</html>
