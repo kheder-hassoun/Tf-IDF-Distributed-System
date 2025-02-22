@@ -64,6 +64,9 @@ git clone https://github.com/kheder-hassoun/My-Tf-IDF-Distributed-System-Web-bas
 
 - Ensure Zookeeper is set up and running correctly before launching the system.
 - The system is designed for horizontal scalability, allowing you to add more workers as needed.
+-
+
+kheder hassoun
 - For more details about configuring the system, refer to the configuration files.
 
 ---
