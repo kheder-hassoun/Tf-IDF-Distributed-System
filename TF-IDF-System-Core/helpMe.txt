@@ -1,0 +1,3 @@
+to build run this
+cd TF-IDF-System-Core
+mvn clean package -DskipTests
