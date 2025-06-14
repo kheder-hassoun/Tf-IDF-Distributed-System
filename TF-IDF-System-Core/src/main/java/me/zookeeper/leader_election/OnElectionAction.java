@@ -35,21 +35,23 @@ public class OnElectionAction implements OnElectionCallback {
         try {
             // Get the current server port dynamically
             int runningPort = Integer.parseInt(environment.getProperty("local.server.port"));
+            String currentServerAddress =
+                    String.format("http://%s:%d", InetAddress.getLocalHost().getCanonicalHostName(), runningPort);
 
-            String leaderInfoData = String.valueOf(runningPort);
+           // String leaderInfoData = String.valueOf(runningPort);
 
             // Create the znode if it doesn't exist, or update it if it does
             if (zooKeeper.exists(leaderInfoPath, false) == null) {
                 zooKeeper.create(
                         leaderInfoPath,
-                        leaderInfoData.getBytes(),
+                        currentServerAddress.getBytes(),
                         ZooDefs.Ids.OPEN_ACL_UNSAFE,
                         CreateMode.EPHEMERAL
                 );
             } else {
-                zooKeeper.setData(leaderInfoPath, leaderInfoData.getBytes(), -1);
+                zooKeeper.setData(leaderInfoPath, currentServerAddress.getBytes(), -1);
             }
-        } catch (KeeperException | InterruptedException | NumberFormatException e) {
+        } catch (InterruptedException | UnknownHostException | KeeperException | NumberFormatException e) {
             e.printStackTrace();
         }
     }

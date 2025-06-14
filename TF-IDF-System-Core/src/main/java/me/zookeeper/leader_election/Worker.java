@@ -2,6 +2,7 @@ package me.zookeeper.leader_election;
 
 import Document_and_Data.Document;
 import Document_and_Data.DocumentTermsInfo;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,72 +11,92 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
+
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+
 @RestController
 @RequestMapping("/worker")
 public class Worker {
 
     private static final Logger logger = LoggerFactory.getLogger(Worker.class);
+
     @Value("${mydocument.path}")
-    private String DOCUMENTS_PATH ;
+    private String DOCUMENTS_PATH;
+
+    // Add diagnostic logging
+    @PostConstruct
+    public void init() {
+        logger.info("DOCUMENTS_PATH: {}", DOCUMENTS_PATH);
+        try {
+            Path path = Paths.get(DOCUMENTS_PATH);
+            logger.info("Path exists: {}", Files.exists(path));
+            logger.info("Is directory: {}", Files.isDirectory(path));
+
+            if (Files.exists(path) && Files.isDirectory(path)) {
+                List<Path> files = Files.list(path).collect(Collectors.toList());
+                logger.info("Files in directory: {}", files);
+            }
+        } catch (Exception e) {
+            logger.error("Init error: ", e);
+        }
+    }
 
     @PostMapping("/process")
     public List<DocumentTermsInfo> processDocuments(@RequestBody String searchQuery) {
         logger.info("Processing documents for query: {}", searchQuery);
         return calculateDocumentScores(getDocumentsFromResources(), searchQuery);
     }
+
     private List<Document> getDocumentsFromResources() {
         try {
-            return Files.walk(Paths.get(DOCUMENTS_PATH))
+            Path startPath = Paths.get(DOCUMENTS_PATH);
+            logger.info("Scanning directory: {}", startPath.toAbsolutePath());
+
+            return Files.walk(startPath)
                     .filter(Files::isRegularFile)
-                    .map(path -> new Document(path.getFileName().toString()))
+                    .peek(path -> logger.info("Found file: {}", path))
+                    .map(path -> new Document(path.toAbsolutePath().toString()))
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            logger.error("Error reading documents: {}", e.getMessage());
+            logger.error("Error reading documents: ", e);  // Full stack trace
             return Collections.emptyList();
         }
     }
+
     private List<DocumentTermsInfo> calculateDocumentScores(List<Document> documents, String searchQuery) {
         List<DocumentTermsInfo> documentTermsInfos = new ArrayList<>();
         String[] queryWords = searchQuery.split("\\s+");
 
         for (Document document : documents) {
-            String filePath = DOCUMENTS_PATH + "\\" + document.getName();
-            File file = new File(filePath);
+            String filePath = document.getName();
+            try {
+                Path path = Paths.get(filePath);
+                if (!Files.exists(path)) {
+                    logger.warn("File not found: {}", filePath);
+                    continue;
+                }
 
-            if (!file.exists()) {
-                logger.warn("File not found: {}", filePath);
-                continue;
-            }
-
-            try (InputStream inputStream = new FileInputStream(file)) {
-                byte[] data = inputStream.readAllBytes();
-                String fileContent = new String(data);
-                DocumentTermsInfo termsInfo = calculateScore(fileContent, queryWords, document.getName());
+                String fileContent = Files.readString(path);
+                DocumentTermsInfo termsInfo = calculateScore(fileContent, queryWords, document);
                 documentTermsInfos.add(termsInfo);
-                System.out.println(" ducument term info : "+documentTermsInfos.toString());
+                logger.info("Processed document: {}", document.getName());
             } catch (Exception e) {
-                logger.error("Error processing document {}: {}", document.getName(), e.getMessage());
+                logger.error("Error processing document {}: {}", filePath, e.getMessage());
             }
         }
-        System.out.println("final document term info "+ documentTermsInfos);
+        logger.info("Processed {} documents", documentTermsInfos.size());
         return documentTermsInfos;
     }
 
-    private DocumentTermsInfo calculateScore(String fileContent, String[] queryWords, String docName) {
+    private DocumentTermsInfo calculateScore(String fileContent, String[] queryWords, Document document) {
         DocumentTermsInfo documentTermsInfo = new DocumentTermsInfo();
-        Document document = new Document(docName);
         documentTermsInfo.setDocument(document);
 
         HashMap<String, Double> termsInfo = new HashMap<>();
