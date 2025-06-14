@@ -1,5 +1,6 @@
 package me.zookeeper.leader_election;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
@@ -24,6 +25,25 @@ public class LeaderElection implements Watcher {
         this.zooKeeper = zooKeeper;
         this.onElectionCallback = onElectionCallback;
 
+    }
+    @PostConstruct
+    public void initializeElectionNode() {
+        try {
+            // Check if the election node exists
+            Stat stat = zooKeeper.exists(ELECTION_NAMESPACE, false);
+            if (stat == null) {
+                // Create the election node if it doesn't exist
+                zooKeeper.create(ELECTION_NAMESPACE, new byte[]{},
+                        ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                logger.info("Created election znode: {}", ELECTION_NAMESPACE);
+            }
+        } catch (KeeperException.NodeExistsException e) {
+            logger.debug("Election znode already exists: {}", ELECTION_NAMESPACE);
+        } catch (KeeperException | InterruptedException e) {
+            logger.error("Failed to initialize election znode", e);
+            // Propagate as runtime exception to fail application startup
+            throw new RuntimeException("Failed to initialize election node", e);
+        }
     }
 
     public void volunteerForLeadership() throws InterruptedException, KeeperException {

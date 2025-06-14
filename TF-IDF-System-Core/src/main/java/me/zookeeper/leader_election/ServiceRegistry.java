@@ -1,5 +1,6 @@
 package me.zookeeper.leader_election;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
@@ -26,18 +27,29 @@ public class ServiceRegistry implements Watcher {
         this.zooKeeper = zooKeeper;
         createServiceRegistryZnode();
     }
+    @PostConstruct
+    public void init() {
+        createServiceRegistryZnode();
+    }
 
     private void createServiceRegistryZnode() {
         try {
-            if (zooKeeper.exists(REGISTRY_ZNODE, false) == null) {
-                zooKeeper.create(REGISTRY_ZNODE, new byte[]{}, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            // Attempt to create the node directly
+            zooKeeper.create(REGISTRY_ZNODE, new byte[]{},
+                    ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            logger.info("Created service registry znode: {}", REGISTRY_ZNODE);
+        } catch (KeeperException.NodeExistsException e) {
+            logger.debug("Service registry znode already exists: {}", REGISTRY_ZNODE);
+        } catch (KeeperException | InterruptedException e) {
+            logger.error("Critical error creating service registry znode", e);
+            // Handle critical failure appropriately
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt(); // Restore interrupt status
             }
-        } catch (KeeperException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            throw new RuntimeException("Failed to initialize service registry", e);
         }
     }
+
 
     public void registerToCluster(String metadata) throws KeeperException, InterruptedException {
         if (this.currentZnode != null) {
