@@ -59,14 +59,18 @@ public class OnElectionAction implements OnElectionCallback {
     @Override
     public void onWorker() {
         try {
-            // Get the current server port dynamically
-            int runningPort = Integer.parseInt(environment.getProperty("local.server.port"));
+            // 1) Get the pod’s IP from the Downward‑API env var
+            String podIp = System.getenv("POD_IP");          // set in Deployment
+            System.out.println(" debuuuuuuug  IP : "+ podIp);
+            // 2) Get the port; fall back to 8085
+            int port = Integer.parseInt(
+                    environment.getProperty("server.port", "8085"));
 
-            String currentServerAddress =
-                    String.format("http://%s:%d", InetAddress.getLocalHost().getCanonicalHostName(), runningPort);
+            // 3) Register IP:port, not hostname
+            String currentServerAddress = String.format("http://%s:%d", podIp, port);
 
             serviceRegistry.registerToCluster(currentServerAddress);
-        } catch (InterruptedException | UnknownHostException | KeeperException | NumberFormatException e) {
+        } catch (InterruptedException | KeeperException e) {
             e.printStackTrace();
         }
     }

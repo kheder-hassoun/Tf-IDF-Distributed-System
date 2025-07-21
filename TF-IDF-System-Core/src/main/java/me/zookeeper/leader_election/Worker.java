@@ -1,111 +1,124 @@
 package me.zookeeper.leader_election;
 
 import Document_and_Data.Document;
-import Document_and_Data.DocumentTermsInfo;
+import Document_and_Data.DocumentScoreInfo;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.*;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.IOException;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/worker")
 public class Worker {
-
     private static final Logger logger = LoggerFactory.getLogger(Worker.class);
 
     @Value("${mydocument.path}")
     private String DOCUMENTS_PATH;
 
-    // Add diagnostic logging
+    @Value("${lucene.index.path}")
+    private String INDEX_PATH;
+
+    private Directory luceneDir;
+    private IndexWriter indexWriter;
+
     @PostConstruct
     public void init() {
-        logger.info("DOCUMENTS_PATH: {}", DOCUMENTS_PATH);
+        logger.info("Initializing Worker. DOCUMENTS_PATH={}  INDEX_PATH={}", DOCUMENTS_PATH, INDEX_PATH);
         try {
-            Path path = Paths.get(DOCUMENTS_PATH);
-            logger.info("Path exists: {}", Files.exists(path));
-            logger.info("Is directory: {}", Files.isDirectory(path));
-
-            if (Files.exists(path) && Files.isDirectory(path)) {
-                List<Path> files = Files.list(path).collect(Collectors.toList());
-                logger.info("Files in directory: {}", files);
+            Path docsPath = Paths.get(DOCUMENTS_PATH);
+            if (!Files.exists(docsPath) || !Files.isDirectory(docsPath)) {
+                logger.error("Documents path invalid: {}", docsPath.toAbsolutePath());
+                return;
             }
+
+            // Prepare Lucene index directory (separate from documents)
+            Path idxPath = Paths.get(INDEX_PATH);
+            Files.createDirectories(idxPath);
+            luceneDir = FSDirectory.open(idxPath);
+
+            Analyzer analyzer = new StandardAnalyzer();
+            IndexWriterConfig config = new IndexWriterConfig(analyzer);
+            indexWriter = new IndexWriter(luceneDir, config);
+
+            // Index all files under docsPath, skipping anything under idxPath
+            logger.info("Walking {} to index files...", docsPath);
+            Files.walk(docsPath)
+                    .filter(Files::isRegularFile)
+                    .filter(path -> !path.startsWith(idxPath))
+                    .forEach(path -> {
+                        try {
+                            String fileName = path.toAbsolutePath().toString();
+                            addDocToIndex(new Document(fileName));
+                        } catch (Exception e) {
+                            logger.error("Failed to index {}: {}", path, e.getMessage());
+                        }
+                    });
+
+            indexWriter.commit();
+            logger.info("Indexing complete. Total docs indexed: {}", indexWriter.numRamDocs());
+
         } catch (Exception e) {
-            logger.error("Init error: ", e);
+            logger.error("Error during Worker init:", e);
         }
     }
 
-    @PostMapping("/process")
-    public List<DocumentTermsInfo> processDocuments(@RequestBody String searchQuery) {
-        logger.info("Processing documents for query: {}", searchQuery);
-        return calculateDocumentScores(getDocumentsFromResources(), searchQuery);
+    private void addDocToIndex(Document doc) throws IOException {
+        String content = Files.readString(Paths.get(doc.getName()));
+        org.apache.lucene.document.Document ldoc = new org.apache.lucene.document.Document();
+        ldoc.add(new StringField("path", doc.getName(), Field.Store.YES));
+        ldoc.add(new TextField("contents", content, Field.Store.NO));
+        indexWriter.updateDocument(new Term("path", doc.getName()), ldoc);
+        logger.debug("Indexed document: {}", doc.getName());
     }
 
-    private List<Document> getDocumentsFromResources() {
+    @PostMapping("/process")
+    public List<DocumentScoreInfo> processDocuments(@RequestBody String searchQuery) {
+        logger.info("Received query: \"{}\"", searchQuery);
         try {
-            Path startPath = Paths.get(DOCUMENTS_PATH);
-            logger.info("Scanning directory: {}", startPath.toAbsolutePath());
-
-            return Files.walk(startPath)
-                    .filter(Files::isRegularFile)
-                    .peek(path -> logger.info("Found file: {}", path))
-                    .map(path -> new Document(path.toAbsolutePath().toString()))
-                    .collect(Collectors.toList());
+            List<DocumentScoreInfo> results = searchIndex(searchQuery);
+            logger.info("Returning {} hits for query \"{}\"", results.size(), searchQuery);
+            return results;
         } catch (Exception e) {
-            logger.error("Error reading documents: ", e);  // Full stack trace
+            logger.error("Search failed for query \"{}\": {}", searchQuery, e.getMessage());
             return Collections.emptyList();
         }
     }
 
-    private List<DocumentTermsInfo> calculateDocumentScores(List<Document> documents, String searchQuery) {
-        List<DocumentTermsInfo> documentTermsInfos = new ArrayList<>();
-        String[] queryWords = searchQuery.split("\\s+");
+    private List<DocumentScoreInfo> searchIndex(String queryString) throws Exception {
+        try (DirectoryReader reader = DirectoryReader.open(luceneDir)) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            Analyzer analyzer = new StandardAnalyzer();
+            QueryParser parser = new QueryParser("contents", analyzer);
+            Query query = parser.parse(QueryParser.escape(queryString));
+            logger.debug("Parsed Lucene query: {}", query);
 
-        for (Document document : documents) {
-            String filePath = document.getName();
-            try {
-                Path path = Paths.get(filePath);
-                if (!Files.exists(path)) {
-                    logger.warn("File not found: {}", filePath);
-                    continue;
-                }
+            TopDocs topDocs = searcher.search(query, Integer.MAX_VALUE);
+            logger.info("Lucene found {} total hits", topDocs.totalHits.value);
 
-                String fileContent = Files.readString(path);
-                DocumentTermsInfo termsInfo = calculateScore(fileContent, queryWords, document);
-                documentTermsInfos.add(termsInfo);
-                logger.info("Processed document: {}", document.getName());
-            } catch (Exception e) {
-                logger.error("Error processing document {}: {}", filePath, e.getMessage());
+            List<DocumentScoreInfo> results = new ArrayList<>();
+            for (ScoreDoc sd : topDocs.scoreDocs) {
+                org.apache.lucene.document.Document hit = searcher.doc(sd.doc);
+                String path = hit.get("path");
+                results.add(new DocumentScoreInfo(new Document(path), sd.score));
             }
+            return results;
         }
-        logger.info("Processed {} documents", documentTermsInfos.size());
-        return documentTermsInfos;
-    }
-
-    private DocumentTermsInfo calculateScore(String fileContent, String[] queryWords, Document document) {
-        DocumentTermsInfo documentTermsInfo = new DocumentTermsInfo();
-        documentTermsInfo.setDocument(document);
-
-        HashMap<String, Double> termsInfo = new HashMap<>();
-        for (String word : queryWords) {
-            long count = fileContent.split("\\b" + word + "\\b").length - 1;
-            termsInfo.put(word, (double) count);
-        }
-
-        documentTermsInfo.setTermFrequency(termsInfo);
-        return documentTermsInfo;
     }
 }

@@ -73,6 +73,27 @@
 			<artifactId>slf4j-api</artifactId>
 			<version>2.0.9</version> <!-- Ensure version matches your project -->
 		</dependency>
+		<!-- Lucene Core -->
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-core</artifactId>
+			<version>9.8.0</version>
+		</dependency>
+		<!-- Query parser & analysis -->
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-queryparser</artifactId>
+			<version>9.8.0</version>
+		</dependency>
+		<!-- For common analyzers, use specific ones like: -->
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-analysis-common</artifactId>
+			<version>9.8.0</version>
+		</dependency>
+
+
+
 <!--		<dependency>-->
 <!--			<groupId>ch.qos.logback</groupId>-->
 <!--			<artifactId>logback-classic</artifactId>-->
