@@ -13,12 +13,25 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import jakarta.annotation.PostConstruct;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.sax.BodyContentHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.xml.sax.SAXException;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.MalformedInputException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -78,14 +91,81 @@ public class Worker {
             logger.error("Error during Worker init:", e);
         }
     }
+    @GetMapping("/download")
+    public ResponseEntity<Resource> workerDownload(@RequestParam String path) throws IOException {
+
+        Path base   = Paths.get(DOCUMENTS_PATH).normalize();
+        Path target = base.resolve(path).normalize();
+
+        if (!target.startsWith(base) || !Files.exists(target)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource res = new FileSystemResource(target.toFile());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + target.getFileName() + "\"")
+                .contentLength(res.contentLength())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(res);
+    }
+
+
+    @PostMapping("/upload")
+    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("Empty file");
+        }
+        try {
+            // 1. save to DOCUMENTS_PATH
+            Path dest = Paths.get(DOCUMENTS_PATH, file.getOriginalFilename())
+                    .normalize();
+            Files.copy(file.getInputStream(), dest,
+                    StandardCopyOption.REPLACE_EXISTING);
+
+            // 2. add to Lucene index
+            synchronized (indexWriter) {           // writer isn’t thread‑safe
+                addDocToIndex(new Document(dest.toString()));
+                indexWriter.commit();
+            }
+            logger.info("Uploaded & indexed {}", dest);
+            return ResponseEntity.ok("Uploaded");
+        } catch (Exception e) {
+            logger.error("Upload failed", e);
+            return ResponseEntity.status(500).body("Upload failed: " + e.getMessage());
+        }
+    }
+
+
 
     private void addDocToIndex(Document doc) throws IOException {
-        String content = Files.readString(Paths.get(doc.getName()));
+
+        Path path = Paths.get(doc.getName());
+        String text;
+
+        try {
+            /* 1. Try plain‑text fast path */
+            text = Files.readString(path);              // works for UTF‑8 text
+        } catch (MalformedInputException e) {
+            /* 2. Fallback to Tika for binary / non‑UTF8 files */
+            try (InputStream in = Files.newInputStream(path)) {
+                AutoDetectParser parser = new AutoDetectParser();
+                BodyContentHandler handler = new BodyContentHandler(-1); // -1 = unlimited
+                parser.parse(in, handler, new Metadata());
+                text = handler.toString();
+                logger.debug("Tika extracted {} bytes from {}", text.length(), path);
+            } catch (TikaException | SAXException ex) {
+                logger.error("Tika failed to parse {}: {}", path, ex.getMessage());
+                text = "";                               // index filename only
+            }
+        }
+
+        /* 3. Index filename + extracted text */
         org.apache.lucene.document.Document ldoc = new org.apache.lucene.document.Document();
         ldoc.add(new StringField("path", doc.getName(), Field.Store.YES));
-        ldoc.add(new TextField("contents", content, Field.Store.NO));
+        ldoc.add(new TextField("contents", text, Field.Store.NO));
         indexWriter.updateDocument(new Term("path", doc.getName()), ldoc);
-        logger.debug("Indexed document: {}", doc.getName());
+        logger.debug("Indexed {}", doc.getName());
     }
 
     @PostMapping("/process")

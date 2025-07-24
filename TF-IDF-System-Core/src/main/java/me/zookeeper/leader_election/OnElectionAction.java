@@ -33,10 +33,13 @@ public class OnElectionAction implements OnElectionCallback {
         String leaderInfoPath = "/leader_info";
 
         try {
-            // Get the current server port dynamically
-            int runningPort = Integer.parseInt(environment.getProperty("local.server.port"));
-            String currentServerAddress =
-                    String.format("http://%s:%d", InetAddress.getLocalHost().getCanonicalHostName(), runningPort);
+
+            String podIp = System.getenv("POD_IP");
+            int port     = Integer.parseInt(System.getenv().getOrDefault("SERVER_PORT", "8085"));
+            String currentServerAddress = "http://" + podIp + ":" + port;
+
+
+
 
            // String leaderInfoData = String.valueOf(runningPort);
 
@@ -51,7 +54,7 @@ public class OnElectionAction implements OnElectionCallback {
             } else {
                 zooKeeper.setData(leaderInfoPath, currentServerAddress.getBytes(), -1);
             }
-        } catch (InterruptedException | UnknownHostException | KeeperException | NumberFormatException e) {
+        } catch (InterruptedException | KeeperException | NumberFormatException e) {
             e.printStackTrace();
         }
     }
