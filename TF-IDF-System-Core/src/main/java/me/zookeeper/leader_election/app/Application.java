@@ -1,12 +1,13 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.app;
 
 
+import me.zookeeper.leader_election.leader.LeaderElection;
+import me.zookeeper.leader_election.registry.ServiceRegistry;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 

@@ -1,4 +1,4 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.worker;
 
 import Document_and_Data.Document;
 import Document_and_Data.DocumentScoreInfo;
@@ -120,6 +120,7 @@ public class Worker {
                 .body(res);
     }
 
+
     /* -------------------- UPLOAD -------------------- */
     @PostMapping("/upload")
     public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) {
@@ -141,6 +142,32 @@ public class Worker {
         } catch (Exception e) {
             log.error("Upload failed", e);
             return ResponseEntity.status(500).body("Upload failed: " + e.getMessage());
+        }
+    }
+    @GetMapping("/index-size")
+    public ResponseEntity<Long> getIndexSize() {
+        try {
+            Path indexPath = Paths.get(INDEX_PATH).normalize();
+            if (!Files.exists(indexPath)) {
+                return ResponseEntity.ok(0L);
+            }
+
+            long totalSize = Files.walk(indexPath)
+                    .filter(Files::isRegularFile)
+                    .mapToLong(path -> {
+                        try {
+                            return Files.size(path);
+                        } catch (IOException e) {
+                            log.warn("Error reading size of {}", path);
+                            return 0L;
+                        }
+                    }).sum();
+
+            log.info("Index size for {} is {} bytes", indexPath, totalSize);
+            return ResponseEntity.ok(totalSize);
+        } catch (Exception e) {
+            log.error("Failed to get index size", e);
+            return ResponseEntity.status(500).build();
         }
     }
 

@@ -1,6 +1,7 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.leader;
 
 import Document_and_Data.DocumentScoreInfo;
+import me.zookeeper.leader_election.registry.ServiceRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -149,15 +150,14 @@ public class Leader {
         return ResponseEntity.notFound().build();
     }
 
-    /* -------------------- UPLOAD -------------------- */
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadToWorkers(@RequestParam("file") MultipartFile file) throws IOException {
+    public ResponseEntity<String> uploadToLeastLoadedWorker(@RequestParam("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) return ResponseEntity.badRequest().body("Empty file");
 
         String filename = file.getOriginalFilename();
         log.info("Leader received upload for '{}', size={} bytes", filename, file.getSize());
 
-        byte[] bytes = file.getBytes(); // read once
+        byte[] bytes = file.getBytes();
 
         RestTemplate rt = new RestTemplate();
         List<String> workers = serviceRegistry.getAllServiceAddresses();
@@ -165,6 +165,30 @@ public class Leader {
             return ResponseEntity.status(503).body("No workers available");
         }
 
+        // Step 1: Get index size for each worker
+        Map<String, Long> workerSizes = new HashMap<>();
+        for (String w : workers) {
+            try {
+                ResponseEntity<Long> resp = rt.getForEntity(w + "/worker/index-size", Long.class);
+                if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
+                    workerSizes.put(w, resp.getBody());
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to get index size from {}: {}", w, ex.getMessage());
+            }
+        }
+
+        // Step 2: Choose the worker with the smallest size
+        String chosenWorker = workerSizes.entrySet().stream()
+                .min(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+
+        if (chosenWorker == null) {
+            return ResponseEntity.status(503).body("No healthy workers responded with index size");
+        }
+
+        // Step 3: Upload to chosen worker
         MultiValueMap<String,Object> body = new LinkedMultiValueMap<>();
         body.add("file", new ByteArrayResource(bytes) {
             @Override public String getFilename() { return filename; }
@@ -172,21 +196,16 @@ public class Leader {
         HttpEntity<MultiValueMap<String,Object>> req =
                 new HttpEntity<>(body, createMultipartHeaders());
 
-        int ok = 0;
-        for (String w : workers) {
-            String url = w + "/worker/upload";
-            try {
-                ResponseEntity<String> r = rt.postForEntity(url, req, String.class);
-                log.info("Upload to {} -> {}", w, r.getStatusCode());
-                if (r.getStatusCode().is2xxSuccessful()) ok++;
-            } catch (Exception ex) {
-                log.warn("Upload to {} failed: {}", w, ex.getMessage());
-            }
+        try {
+            ResponseEntity<String> r = rt.postForEntity(chosenWorker + "/worker/upload", req, String.class);
+            log.info("Uploaded to {} -> {}", chosenWorker, r.getStatusCode());
+            return r;
+        } catch (Exception ex) {
+            log.warn("Upload to {} failed: {}", chosenWorker, ex.getMessage());
+            return ResponseEntity.status(500).body("Upload failed to selected worker: " + ex.getMessage());
         }
-        String msg = "Uploaded to " + ok + "/" + workers.size() + " workers";
-        log.info(msg);
-        return ResponseEntity.ok(msg);
     }
+
 
     private static HttpHeaders createMultipartHeaders() {
         HttpHeaders h = new HttpHeaders();

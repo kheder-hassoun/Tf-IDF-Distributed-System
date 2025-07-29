@@ -1,5 +1,7 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.controller;
 
+import me.zookeeper.leader_election.leader.LeaderElection;
+import me.zookeeper.leader_election.registry.ServiceRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

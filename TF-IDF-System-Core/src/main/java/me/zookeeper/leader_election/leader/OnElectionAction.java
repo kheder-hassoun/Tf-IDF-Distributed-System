@@ -1,5 +1,6 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.leader;
 
+import me.zookeeper.leader_election.registry.ServiceRegistry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooDefs;
@@ -7,9 +8,6 @@ import org.apache.zookeeper.ZooKeeper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 @Component
 public class OnElectionAction implements OnElectionCallback {

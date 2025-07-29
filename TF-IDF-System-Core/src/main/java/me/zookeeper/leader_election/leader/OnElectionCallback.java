@@ -1,4 +1,4 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.leader;
 
 public interface OnElectionCallback {
 

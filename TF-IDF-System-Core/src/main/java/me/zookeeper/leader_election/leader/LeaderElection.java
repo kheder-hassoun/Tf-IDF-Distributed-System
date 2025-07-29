@@ -1,4 +1,4 @@
-package me.zookeeper.leader_election;
+package me.zookeeper.leader_election.leader;
 
 import jakarta.annotation.PostConstruct;
 import org.apache.zookeeper.*;
